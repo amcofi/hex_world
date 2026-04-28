@@ -1,0 +1,327 @@
+{
+  "nodes": [
+    {
+      "q": -2,
+      "r": 0,
+      "s": 2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -2,
+      "r": 1,
+      "s": 1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -2,
+      "r": 2,
+      "s": 0,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -1,
+      "r": -1,
+      "s": 2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -1,
+      "r": 0,
+      "s": 1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -1,
+      "r": 1,
+      "s": 0,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": -1,
+      "r": 2,
+      "s": -1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 0,
+      "r": -2,
+      "s": 2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 0,
+      "r": -1,
+      "s": 1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 0,
+      "r": 0,
+      "s": 0,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 0,
+      "r": 1,
+      "s": -1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 0,
+      "r": 2,
+      "s": -2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 1,
+      "r": -2,
+      "s": 1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 1,
+      "r": -1,
+      "s": 0,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 1,
+      "r": 0,
+      "s": -1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 1,
+      "r": 1,
+      "s": -2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 2,
+      "r": -2,
+      "s": 0,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 2,
+      "r": -1,
+      "s": -1,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    },
+    {
+      "q": 2,
+      "r": 0,
+      "s": -2,
+      "tile": {
+        "name": "road_straight",
+        "rotation": 1,
+        "edges": [
+          "grass",
+          "grass",
+          "road",
+          "grass",
+          "grass",
+          "road"
+        ]
+      }
+    }
+  ]
+}

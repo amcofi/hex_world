@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HexWorld Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #13131f;
+      color: #cdd6f4;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: .75rem 1.25rem;
+      background: #1e1e2e;
+      border-bottom: 1px solid #313244;
+      flex-shrink: 0;
+    }
+
+    header h1 { margin: 0; font-size: 1.1rem; letter-spacing: .05em; }
+
+    .open-btn {
+      cursor: pointer;
+      background: #45475a;
+      border: 1px solid #585b70;
+      color: #cdd6f4;
+      padding: .35rem .85rem;
+      border-radius: .4rem;
+      font-size: .9rem;
+    }
+    .open-btn:hover { background: #585b70; }
+
+    #file-input { display: none; }
+
+    #status {
+      color: #6c7086;
+      font-size: .85rem;
+    }
+
+    #tooltip {
+      margin-left: auto;
+      font-size: .85rem;
+      color: #a6adc8;
+      min-width: 18rem;
+      text-align: right;
+    }
+
+    #map {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    svg .hex-group { cursor: default; }
+    svg .hex-group:hover .hex-outline { stroke: #cba6f7; stroke-width: 2.5; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>HexWorld</h1>
+  <label class="open-btn" for="file-input">Open map.json</label>
+  <input type="file" id="file-input" accept=".json">
+  <span id="status">No map loaded</span>
+  <span id="tooltip"></span>
+</header>
+
+<div id="map"></div>
+
+<script>
+  // ── rendering constants ──────────────────────────────────────────────────────
+  // Must match generate_tiles.py:
+  //   edge[i] is drawn from vertex[i] to vertex[(i+1)%6]
+  //   vertex[i] sits at i×60° clockwise from east (screen coords, +y downward)
+  const SIZE        = 52;   // hex radius in px
+  const EDGE_W      = 14;   // edge stroke width
+  const PADDING     = SIZE + 16;
+  const HEX_FILL    = "#c8b48a";
+  const HEX_FILL_EMPTY = "#2a2a3e";
+  const HEX_STROKE  = "#555566";
+
+  const EDGE_COLORS = {
+    grass: "#6aaa52",
+    road:  "#b8a898",
+  };
+  const DEFAULT_EDGE_COLOR = "#888";
+
+  // ── geometry helpers ─────────────────────────────────────────────────────────
+  const NS = "http://www.w3.org/2000/svg";
+
+  function hexVertices(cx, cy, r) {
+    return Array.from({length: 6}, (_, i) => [
+      cx + r * Math.cos(i * Math.PI / 3),
+      cy + r * Math.sin(i * Math.PI / 3),
+    ]);
+  }
+
+  // Flat-top hex → pixel  (matches the Python hex_map._DIRECTIONS ordering)
+  function hexToPixel(q, r) {
+    return [
+      SIZE * 1.5 * q,
+      SIZE * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r),
+    ];
+  }
+
+  function pts(verts) {
+    return verts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+  }
+
+  function el(tag, attrs = {}) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    return e;
+  }
+
+  // ── render ───────────────────────────────────────────────────────────────────
+  function renderMap(data) {
+    const positions = data.nodes.map(n => hexToPixel(n.q, n.r));
+
+    const xs = positions.map(([x]) => x);
+    const ys = positions.map(([, y]) => y);
+    const minX = Math.min(...xs) - PADDING;
+    const minY = Math.min(...ys) - PADDING;
+    const w    = Math.max(...xs) + PADDING - minX;
+    const h    = Math.max(...ys) + PADDING - minY;
+
+    const svg  = el("svg", { viewBox: `${minX} ${minY} ${w} ${h}`, width: w, height: h });
+    const defs = el("defs");
+    svg.appendChild(defs);
+
+    data.nodes.forEach((node, idx) => {
+      const [cx, cy] = positions[idx];
+      const verts    = hexVertices(cx, cy, SIZE);
+      const polyPts  = pts(verts);
+
+      // per-hex clip path so thick edge lines don't bleed outside
+      const clipId = `c${idx}`;
+      const clip   = el("clipPath", { id: clipId });
+      clip.appendChild(el("polygon", { points: polyPts }));
+      defs.appendChild(clip);
+
+      const g = el("g", { class: "hex-group" });
+
+      // background fill
+      g.appendChild(el("polygon", {
+        points: polyPts,
+        fill: node.tile ? HEX_FILL : HEX_FILL_EMPTY,
+      }));
+
+      // edge lines (clipped)
+      if (node.tile) {
+        const eg = el("g", { "clip-path": `url(#${clipId})` });
+        node.tile.edges.forEach((edgeType, i) => {
+          const [x1, y1] = verts[i];
+          const [x2, y2] = verts[(i + 1) % 6];
+          eg.appendChild(el("line", {
+            x1: x1.toFixed(2), y1: y1.toFixed(2),
+            x2: x2.toFixed(2), y2: y2.toFixed(2),
+            stroke: EDGE_COLORS[edgeType] ?? DEFAULT_EDGE_COLOR,
+            "stroke-width": EDGE_W,
+            "stroke-linecap": "round",
+          }));
+        });
+        g.appendChild(eg);
+      }
+
+      // outline on top
+      g.appendChild(el("polygon", {
+        class: "hex-outline",
+        points: polyPts,
+        fill: "none",
+        stroke: HEX_STROKE,
+        "stroke-width": "1.5",
+      }));
+
+      // hover tooltip data
+      g.dataset.q = node.q;
+      g.dataset.r = node.r;
+      g.dataset.s = node.s;
+      if (node.tile) {
+        g.dataset.tile = `${node.tile.name}  r${node.tile.rotation}`;
+      }
+
+      svg.appendChild(g);
+    });
+
+    // hover info
+    const tooltip = document.getElementById("tooltip");
+    svg.addEventListener("mouseover", e => {
+      const g = e.target.closest(".hex-group");
+      if (!g) { tooltip.textContent = ""; return; }
+      const coord = `(${g.dataset.q}, ${g.dataset.r}, ${g.dataset.s})`;
+      tooltip.textContent = g.dataset.tile
+        ? `${coord}  ·  ${g.dataset.tile}`
+        : `${coord}  ·  (uncollapsed)`;
+    });
+    svg.addEventListener("mouseleave", () => { tooltip.textContent = ""; });
+
+    const map = document.getElementById("map");
+    map.innerHTML = "";
+    map.appendChild(svg);
+  }
+
+  // ── file loading ─────────────────────────────────────────────────────────────
+  document.getElementById("file-input").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        renderMap(data);
+        const n = data.nodes.length;
+        const collapsed = data.nodes.filter(nd => nd.tile).length;
+        document.getElementById("status").textContent =
+          `${file.name}  ·  ${n} nodes  ·  ${collapsed} collapsed`;
+      } catch (err) {
+        document.getElementById("status").textContent = `Error: ${err.message}`;
+      }
+    };
+    reader.readAsText(file);
+  });
+</script>
+</body>
+</html>
