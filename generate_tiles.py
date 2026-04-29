@@ -1,3 +1,4 @@
+import json
 import math
 import os
 
@@ -76,11 +77,20 @@ def main() -> None:
         HexTile.rotations("road_straight", ["road",  "grass", "grass", "road",  "grass", "grass"])
     )
 
+    tile_images: dict[str, str] = {}
     for tile in sorted(tiles, key=lambda t: (t.name, t.rotation)):
-        path = os.path.join(OUTPUT_DIR, f"{tile.name}_r{tile.rotation}.svg")
+        key = f"{tile.name}_r{tile.rotation}"
+        svg = render_svg(tile)
+        path = os.path.join(OUTPUT_DIR, f"{key}.svg")
         with open(path, "w") as f:
-            f.write(render_svg(tile))
+            f.write(svg)
+        tile_images[key] = svg
         print(path)
+
+    bundle = os.path.join(OUTPUT_DIR, "tiles.json")
+    with open(bundle, "w") as f:
+        json.dump(tile_images, f)
+    print(bundle)
 
 
 if __name__ == "__main__":

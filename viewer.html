@@ -71,8 +71,8 @@
 
 <header>
   <h1>HexWorld</h1>
-  <label class="open-btn" for="file-input">Open map.json</label>
-  <input type="file" id="file-input" accept=".json">
+  <label class="open-btn" for="file-input">Open files</label>
+  <input type="file" id="file-input" accept=".json" multiple>
   <span id="status">No map loaded</span>
   <span id="tooltip"></span>
 </header>
@@ -90,6 +90,12 @@
   const HEX_FILL    = "#c8b48a";
   const HEX_FILL_EMPTY = "#2a2a3e";
   const HEX_STROKE  = "#555566";
+
+  // Tile SVG dimensions (must match generate_tiles.py IMAGE_SIZE / HEX_RADIUS)
+  const TILE_SVG_SIZE   = 180;
+  const TILE_HEX_RADIUS = 72;
+  // Scale the tile image so its internal hex radius matches SIZE
+  const TILE_DISPLAY = TILE_SVG_SIZE * SIZE / TILE_HEX_RADIUS;  // ≈ 130
 
   const EDGE_COLORS = {
     grass: "#6aaa52",
@@ -126,7 +132,7 @@
   }
 
   // ── render ───────────────────────────────────────────────────────────────────
-  function renderMap(data) {
+  function renderMap(data, tileImages = null) {
     const positions = data.nodes.map(n => hexToPixel(n.q, n.r));
 
     const xs = positions.map(([x]) => x);
@@ -159,21 +165,38 @@
         fill: node.tile ? HEX_FILL : HEX_FILL_EMPTY,
       }));
 
-      // edge lines (clipped)
       if (node.tile) {
-        const eg = el("g", { "clip-path": `url(#${clipId})` });
-        node.tile.edges.forEach((edgeType, i) => {
-          const [x1, y1] = verts[i];
-          const [x2, y2] = verts[(i + 1) % 6];
-          eg.appendChild(el("line", {
-            x1: x1.toFixed(2), y1: y1.toFixed(2),
-            x2: x2.toFixed(2), y2: y2.toFixed(2),
-            stroke: EDGE_COLORS[edgeType] ?? DEFAULT_EDGE_COLOR,
-            "stroke-width": EDGE_W,
-            "stroke-linecap": "round",
+        const key = `${node.tile.name}_r${node.tile.rotation}`;
+        const svgString = tileImages?.[key];
+
+        if (svgString) {
+          // ── image mode: stamp the pre-rendered tile SVG into the hex cell ──
+          const half = TILE_DISPLAY / 2;
+          const ig = el("g", { "clip-path": `url(#${clipId})` });
+          ig.appendChild(el("image", {
+            href: "data:image/svg+xml," + encodeURIComponent(svgString),
+            x: (cx - half).toFixed(2),
+            y: (cy - half).toFixed(2),
+            width:  TILE_DISPLAY.toFixed(2),
+            height: TILE_DISPLAY.toFixed(2),
           }));
-        });
-        g.appendChild(eg);
+          g.appendChild(ig);
+        } else {
+          // ── fallback: draw edge lines directly ────────────────────────────
+          const eg = el("g", { "clip-path": `url(#${clipId})` });
+          node.tile.edges.forEach((edgeType, i) => {
+            const [x1, y1] = verts[i];
+            const [x2, y2] = verts[(i + 1) % 6];
+            eg.appendChild(el("line", {
+              x1: x1.toFixed(2), y1: y1.toFixed(2),
+              x2: x2.toFixed(2), y2: y2.toFixed(2),
+              stroke: EDGE_COLORS[edgeType] ?? DEFAULT_EDGE_COLOR,
+              "stroke-width": EDGE_W,
+              "stroke-linecap": "round",
+            }));
+          });
+          g.appendChild(eg);
+        }
       }
 
       // outline on top
@@ -214,24 +237,40 @@
   }
 
   // ── file loading ─────────────────────────────────────────────────────────────
+  // Accepts map.json and optionally tiles/tiles.json together (multi-select).
+  // Distinguishes them by structure: map JSON has a "nodes" array; tiles JSON
+  // is a flat object whose values are SVG strings.
   document.getElementById("file-input").addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
 
-    const reader = new FileReader();
-    reader.onload = ev => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        renderMap(data);
-        const n = data.nodes.length;
-        const collapsed = data.nodes.filter(nd => nd.tile).length;
-        document.getElementById("status").textContent =
-          `${file.name}  ·  ${n} nodes  ·  ${collapsed} collapsed`;
-      } catch (err) {
-        document.getElementById("status").textContent = `Error: ${err.message}`;
-      }
-    };
-    reader.readAsText(file);
+    const loaded = { map: null, tiles: null };
+    let remaining = files.length;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (Array.isArray(data.nodes)) {
+            loaded.map = data;
+          } else {
+            loaded.tiles = data;   // "name_rN" → svg string
+          }
+        } catch (err) {
+          document.getElementById("status").textContent = `Error in ${file.name}: ${err.message}`;
+        }
+        if (--remaining === 0 && loaded.map) {
+          renderMap(loaded.map, loaded.tiles);
+          const n = loaded.map.nodes.length;
+          const collapsed = loaded.map.nodes.filter(nd => nd.tile).length;
+          const mode = loaded.tiles ? "tile images" : "edge colours";
+          document.getElementById("status").textContent =
+            `${n} nodes · ${collapsed} collapsed · ${mode}`;
+        }
+      };
+      reader.readAsText(file);
+    });
   });
 </script>
 </body>
