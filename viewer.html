@@ -72,7 +72,31 @@
 <header>
   <h1>HexWorld</h1>
   <label class="open-btn" for="file-input">Open files</label>
-  <input type="file" id="file-input" accept=".json" multiple>
+  <!--
+    SELECT ANY COMBINATION of:
+
+    map.json          — the WFC output (required)
+
+    Individual tile images (png / jpg / svg / webp):
+      grass.png, road_straight.svg, …
+      The filename stem (without extension) must match the tile name in the JSON.
+
+    Atlas image + tiles.json config:
+      tiles.json format —
+      {
+        "atlas": {
+          "file": "spritesheet.png",      ← must match the selected image filename
+          "tiles": {
+            "grass":         [  0,   0, 64, 64],   ← [x, y, width, height] in atlas pixels
+            "road_straight": [ 64,   0, 64, 64],
+            "road_end":      [128,   0, 64, 64]
+          }
+        }
+      }
+      Atlas entries and individual image files can be mixed freely.
+      Atlas entries take priority when both exist for the same tile name.
+  -->
+  <input type="file" id="file-input" accept=".json,.png,.jpg,.jpeg,.svg,.webp" multiple>
   <span id="status">No map loaded</span>
   <span id="tooltip"></span>
 </header>
@@ -80,32 +104,15 @@
 <div id="map"></div>
 
 <script>
-  // ── rendering constants ──────────────────────────────────────────────────────
-  // Must match generate_tiles.py:
-  //   edge[i] is drawn from vertex[i] to vertex[(i+1)%6]
-  //   vertex[i] sits at i×60° clockwise from east (screen coords, +y downward)
-  const SIZE        = 52;   // hex radius in px
-  const EDGE_W      = 14;   // edge stroke width
-  const PADDING     = SIZE + 16;
-  const HEX_FILL    = "#c8b48a";
+  // ── constants ────────────────────────────────────────────────────────────────
+  const SIZE           = 52;    // hex circumradius in px
+  const PADDING        = SIZE + 16;
+  const HEX_FILL       = "#c8b48a";
   const HEX_FILL_EMPTY = "#2a2a3e";
-  const HEX_STROKE  = "#555566";
+  const HEX_STROKE     = "#555566";
+  const NS             = "http://www.w3.org/2000/svg";
 
-  // Tile SVG dimensions (must match generate_tiles.py IMAGE_SIZE / HEX_RADIUS)
-  const TILE_SVG_SIZE   = 180;
-  const TILE_HEX_RADIUS = 72;
-  // Scale the tile image so its internal hex radius matches SIZE
-  const TILE_DISPLAY = TILE_SVG_SIZE * SIZE / TILE_HEX_RADIUS;  // ≈ 130
-
-  const EDGE_COLORS = {
-    grass: "#6aaa52",
-    road:  "#b8a898",
-  };
-  const DEFAULT_EDGE_COLOR = "#888";
-
-  // ── geometry helpers ─────────────────────────────────────────────────────────
-  const NS = "http://www.w3.org/2000/svg";
-
+  // ── geometry ─────────────────────────────────────────────────────────────────
   function hexVertices(cx, cy, r) {
     return Array.from({length: 6}, (_, i) => [
       cx + r * Math.cos(i * Math.PI / 3),
@@ -113,7 +120,7 @@
     ]);
   }
 
-  // Flat-top hex → pixel  (matches the Python hex_map._DIRECTIONS ordering)
+  // Flat-top hex cube → pixel (matches hex_map._DIRECTIONS ordering)
   function hexToPixel(q, r) {
     return [
       SIZE * 1.5 * q,
@@ -131,12 +138,100 @@
     return e;
   }
 
-  // ── render ───────────────────────────────────────────────────────────────────
-  function renderMap(data, tileImages = null) {
-    const positions = data.nodes.map(n => hexToPixel(n.q, n.r));
+  // ── helpers ──────────────────────────────────────────────────────────────────
+  function readAsText(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload  = ev => res(ev.target.result);
+      r.onerror = rej;
+      r.readAsText(file);
+    });
+  }
 
-    const xs = positions.map(([x]) => x);
-    const ys = positions.map(([, y]) => y);
+  function loadImageSize(url) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload  = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = rej;
+      img.src = url;
+    });
+  }
+
+  // ── tile resolver ────────────────────────────────────────────────────────────
+  // Builds: tileName → { type:'image', url }
+  //                  | { type:'atlas', url, x,y,w,h, atlasW,atlasH }
+  async function buildResolver(config, imageUrls) {
+    const resolver = {};
+
+    if (config?.atlas) {
+      const { file: atlasFile, tiles } = config.atlas;
+      const url = imageUrls[atlasFile];
+      if (url && tiles) {
+        const { w: atlasW, h: atlasH } = await loadImageSize(url);
+        for (const [name, region] of Object.entries(tiles)) {
+          const [x, y, w, h] = Array.isArray(region)
+            ? region
+            : [region.x, region.y, region.w, region.h];
+          resolver[name] = { type: 'atlas', url, x, y, w, h, atlasW, atlasH };
+        }
+      }
+    }
+
+    // Individual image files fill in anything not covered by the atlas.
+    // The filename stem (without extension) becomes the tile name.
+    for (const [filename, url] of Object.entries(imageUrls)) {
+      const stem = filename.replace(/\.[^.]+$/, '');
+      if (!resolver[stem]) {
+        resolver[stem] = { type: 'image', url };
+      }
+    }
+
+    return resolver;
+  }
+
+  // ── render one tile image into its hex cell ──────────────────────────────────
+  // Tiles are clipped to the hex polygon and rotated by rotation×60° around the
+  // hex centre so only the base (rotation=0) image is needed per tile type.
+  function renderTileImage(g, cx, cy, rotation, info, clipId) {
+    const outer = el("g", { "clip-path": `url(#${clipId})` });
+    const inner = el("g", {
+      transform: `rotate(${rotation * 60},${cx.toFixed(2)},${cy.toFixed(2)})`,
+    });
+
+    if (info.type === 'image') {
+      // preserveAspectRatio="slice" scales to cover the bounding box (like CSS cover)
+      inner.appendChild(el("image", {
+        href:   info.url,
+        x:      (cx - SIZE).toFixed(2),
+        y:      (cy - SIZE).toFixed(2),
+        width:  (SIZE * 2).toFixed(2),
+        height: (SIZE * 2).toFixed(2),
+        preserveAspectRatio: "xMidYMid slice",
+      }));
+    } else {
+      // Atlas: scale the tile region to cover the hex bounding box, then
+      // position the full atlas image so the region is centred at (cx, cy).
+      const { url, x, y, w, h, atlasW, atlasH } = info;
+      const scale = (SIZE * 2) / Math.min(w, h);
+      inner.appendChild(el("image", {
+        href:   url,
+        x:      (cx - scale * (x + w / 2)).toFixed(2),
+        y:      (cy - scale * (y + h / 2)).toFixed(2),
+        width:  (atlasW * scale).toFixed(2),
+        height: (atlasH * scale).toFixed(2),
+      }));
+    }
+
+    outer.appendChild(inner);
+    g.appendChild(outer);
+  }
+
+  // ── render map ───────────────────────────────────────────────────────────────
+  function renderMap(mapData, resolver) {
+    const positions = mapData.nodes.map(n => hexToPixel(n.q, n.r));
+
+    const xs   = positions.map(([x]) => x);
+    const ys   = positions.map(([, y]) => y);
     const minX = Math.min(...xs) - PADDING;
     const minY = Math.min(...ys) - PADDING;
     const w    = Math.max(...xs) + PADDING - minX;
@@ -146,87 +241,51 @@
     const defs = el("defs");
     svg.appendChild(defs);
 
-    data.nodes.forEach((node, idx) => {
+    mapData.nodes.forEach((node, idx) => {
       const [cx, cy] = positions[idx];
       const verts    = hexVertices(cx, cy, SIZE);
       const polyPts  = pts(verts);
+      const clipId   = `c${idx}`;
 
-      // per-hex clip path so thick edge lines don't bleed outside
-      const clipId = `c${idx}`;
-      const clip   = el("clipPath", { id: clipId });
+      const clip = el("clipPath", { id: clipId });
       clip.appendChild(el("polygon", { points: polyPts }));
       defs.appendChild(clip);
 
       const g = el("g", { class: "hex-group" });
 
-      // background fill
       g.appendChild(el("polygon", {
         points: polyPts,
-        fill: node.tile ? HEX_FILL : HEX_FILL_EMPTY,
+        fill:   node.tile ? HEX_FILL : HEX_FILL_EMPTY,
       }));
 
       if (node.tile) {
-        const key = `${node.tile.name}_r${node.tile.rotation}`;
-        const svgString = tileImages?.[key];
-
-        if (svgString) {
-          // ── image mode: stamp the pre-rendered tile SVG into the hex cell ──
-          const half = TILE_DISPLAY / 2;
-          const ig = el("g", { "clip-path": `url(#${clipId})` });
-          ig.appendChild(el("image", {
-            href: "data:image/svg+xml," + encodeURIComponent(svgString),
-            x: (cx - half).toFixed(2),
-            y: (cy - half).toFixed(2),
-            width:  TILE_DISPLAY.toFixed(2),
-            height: TILE_DISPLAY.toFixed(2),
-          }));
-          g.appendChild(ig);
-        } else {
-          // ── fallback: draw edge lines directly ────────────────────────────
-          const eg = el("g", { "clip-path": `url(#${clipId})` });
-          node.tile.edges.forEach((edgeType, i) => {
-            const [x1, y1] = verts[i];
-            const [x2, y2] = verts[(i + 1) % 6];
-            eg.appendChild(el("line", {
-              x1: x1.toFixed(2), y1: y1.toFixed(2),
-              x2: x2.toFixed(2), y2: y2.toFixed(2),
-              stroke: EDGE_COLORS[edgeType] ?? DEFAULT_EDGE_COLOR,
-              "stroke-width": EDGE_W,
-              "stroke-linecap": "round",
-            }));
-          });
-          g.appendChild(eg);
-        }
+        const info = resolver[node.tile.name];
+        if (info) renderTileImage(g, cx, cy, node.tile.rotation, info, clipId);
       }
 
-      // outline on top
       g.appendChild(el("polygon", {
-        class: "hex-outline",
-        points: polyPts,
-        fill: "none",
-        stroke: HEX_STROKE,
+        class:          "hex-outline",
+        points:         polyPts,
+        fill:           "none",
+        stroke:         HEX_STROKE,
         "stroke-width": "1.5",
       }));
 
-      // hover tooltip data
       g.dataset.q = node.q;
       g.dataset.r = node.r;
       g.dataset.s = node.s;
-      if (node.tile) {
-        g.dataset.tile = `${node.tile.name}  r${node.tile.rotation}`;
-      }
+      if (node.tile) g.dataset.tile = `${node.tile.name}  r${node.tile.rotation}`;
 
       svg.appendChild(g);
     });
 
-    // hover info
     const tooltip = document.getElementById("tooltip");
-    svg.addEventListener("mouseover", e => {
-      const g = e.target.closest(".hex-group");
-      if (!g) { tooltip.textContent = ""; return; }
-      const coord = `(${g.dataset.q}, ${g.dataset.r}, ${g.dataset.s})`;
-      tooltip.textContent = g.dataset.tile
-        ? `${coord}  ·  ${g.dataset.tile}`
+    svg.addEventListener("mouseover", ev => {
+      const group = ev.target.closest(".hex-group");
+      if (!group) { tooltip.textContent = ""; return; }
+      const coord = `(${group.dataset.q}, ${group.dataset.r}, ${group.dataset.s})`;
+      tooltip.textContent = group.dataset.tile
+        ? `${coord}  ·  ${group.dataset.tile}`
         : `${coord}  ·  (uncollapsed)`;
     });
     svg.addEventListener("mouseleave", () => { tooltip.textContent = ""; });
@@ -237,40 +296,52 @@
   }
 
   // ── file loading ─────────────────────────────────────────────────────────────
-  // Accepts map.json and optionally tiles/tiles.json together (multi-select).
-  // Distinguishes them by structure: map JSON has a "nodes" array; tiles JSON
-  // is a flat object whose values are SVG strings.
-  document.getElementById("file-input").addEventListener("change", e => {
-    const files = Array.from(e.target.files);
+  document.getElementById("file-input").addEventListener("change", async ev => {
+    const files = Array.from(ev.target.files);
     if (!files.length) return;
 
-    const loaded = { map: null, tiles: null };
-    let remaining = files.length;
+    const statusEl = document.getElementById("status");
+    statusEl.textContent = "Loading…";
 
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const data = JSON.parse(ev.target.result);
+    let mapData      = null;
+    let config       = null;
+    const imageUrls  = {};  // filename → object URL
+
+    for (const file of files) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      try {
+        if (ext === 'json') {
+          const data = JSON.parse(await readAsText(file));
           if (Array.isArray(data.nodes)) {
-            loaded.map = data;
+            mapData = data;
           } else {
-            loaded.tiles = data;   // "name_rN" → svg string
+            config = data;
           }
-        } catch (err) {
-          document.getElementById("status").textContent = `Error in ${file.name}: ${err.message}`;
+        } else if (['png', 'jpg', 'jpeg', 'svg', 'webp'].includes(ext)) {
+          imageUrls[file.name] = URL.createObjectURL(file);
         }
-        if (--remaining === 0 && loaded.map) {
-          renderMap(loaded.map, loaded.tiles);
-          const n = loaded.map.nodes.length;
-          const collapsed = loaded.map.nodes.filter(nd => nd.tile).length;
-          const mode = loaded.tiles ? "tile images" : "edge colours";
-          document.getElementById("status").textContent =
-            `${n} nodes · ${collapsed} collapsed · ${mode}`;
-        }
-      };
-      reader.readAsText(file);
-    });
+      } catch (err) {
+        statusEl.textContent = `Error in ${file.name}: ${err.message}`;
+        return;
+      }
+    }
+
+    if (!mapData) {
+      statusEl.textContent = "No map JSON found in selection.";
+      return;
+    }
+
+    try {
+      const resolver  = await buildResolver(config, imageUrls);
+      renderMap(mapData, resolver);
+      const n         = mapData.nodes.length;
+      const collapsed = mapData.nodes.filter(nd => nd.tile).length;
+      const imgCount  = Object.keys(resolver).length;
+      statusEl.textContent =
+        `${n} nodes · ${collapsed} collapsed · ${imgCount} tile image${imgCount !== 1 ? "s" : ""} loaded`;
+    } catch (err) {
+      statusEl.textContent = `Render error: ${err.message}`;
+    }
   });
 </script>
 </body>
