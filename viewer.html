@@ -250,7 +250,7 @@
   // ── render edge highlights ───────────────────────────────────────────────────
   function renderEdgeColors(g, cx, cy, edges) {
     const verts = hexVertices(cx, cy, SIZE);
-    const INSET = 6;
+    const INSET = 2;
     edges.forEach((name, i) => {
       const color = EDGE_COLORS[name];
       if (!color) return;
@@ -399,6 +399,9 @@
         `${n} nodes · ${collapsed} collapsed · ${imgCount} tile image${imgCount !== 1 ? "s" : ""} loaded`;
     } catch (err) {
       statusEl.textContent = `Render error: ${err.message}`;
+    } finally {
+      // Reset so re-selecting the same filename always fires the change event.
+      ev.target.value = "";
     }
   });
 </script>
