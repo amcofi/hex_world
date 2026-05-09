@@ -2,7 +2,7 @@ import json
 import math
 import os
 
-from hex_tile import HexTile
+from src.hex_tile import HexTile
 
 EDGE_COLORS: dict[str, str] = {
     "grass": "#6aaa52",

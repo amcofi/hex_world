@@ -17,9 +17,9 @@ Requires Python ≥ 3.14 (uses `type` alias statement syntax). No external depen
 
 | File | Purpose |
 |---|---|
-| `hex_tile.py` | `HexTile` class |
-| `hex_node.py` | `HexNode` class |
-| `hex_map.py` | `HexMap` class + WFC logic |
+| `src/hex_tile.py` | `HexTile` class |
+| `src/hex_node.py` | `HexNode` class |
+| `src/hex_map.py` | `HexMap` class + WFC logic |
 | `main.py` | Demo: runs WFC, saves `map.json` |
 | `generate_tiles.py` | Renders one SVG per tile into `tiles/` |
 | `viewer.html` | Static page: load `map.json`, renders the map |
@@ -28,7 +28,7 @@ Requires Python ≥ 3.14 (uses `type` alias statement syntax). No external depen
 
 ## Architecture
 
-### `HexTile` (`hex_tile.py`)
+### `HexTile` (`src/hex_tile.py`)
 
 A tile type defined by its 6 edge labels (strings, e.g. `"grass"`, `"road"`) plus presentation metadata.
 
@@ -56,7 +56,7 @@ tile_set = (
 
 ---
 
-### `HexNode` (`hex_node.py`)
+### `HexNode` (`src/hex_node.py`)
 
 A single hexagonal cell in **cube coordinates** (q, r, s) where q + r + s = 0 (s is auto-derived if omitted).
 
@@ -68,7 +68,7 @@ A single hexagonal cell in **cube coordinates** (q, r, s) where q + r + s = 0 (s
 
 ---
 
-### `HexMap` (`hex_map.py`)
+### `HexMap` (`src/hex_map.py`)
 
 A collection of `HexNode`s plus WFC logic.
 

@@ -1,11 +1,9 @@
 import json
-from collections.abc import Callable
-from hex_node import HexNode
-from hex_tile import HexTile
+
+from .hex_node import HexNode
+from .hex_tile import HexTile
 
 _DIRECTIONS = [(1, -1, 0), (1, 0, -1), (0, 1, -1), (-1, 1, 0), (-1, 0, 1), (0, -1, 1)]
-
-type Selector = Callable[[HexNode, set[HexTile]], list[HexTile]]
 
 
 class HexMap:
@@ -62,20 +60,17 @@ class HexMap:
                     queue.append(neighbor)
         return True
 
-    def collapse(self, selector: Selector | None = None) -> bool:
+    def collapse(self) -> bool:
         """
         WFC: collapses all nodes to a single tile each.
 
-        selector(node, tiles) -> list[HexTile] returns the ordered options to try
-        for a node. Backtracking tries index 0, 1, 2 … so returning a weighted
-        shuffle gives stochastic behaviour while keeping backtracking cheap.
-        Defaults to a stable deterministic order.
+        Each node supplies its own ordered tile options via ``node.select_tiles()``.
+        That per-node selector can reorder tiles stochastically or return only a
+        subset of the current possibilities, which makes it possible to bias or
+        constrain different regions of the map differently.
 
         Returns True on success, False if the tile set has no valid solution.
         """
-        if selector is None:
-            selector = lambda node, tiles: sorted(tiles, key=hash)
-
         def save() -> dict[HexNode, set[HexTile]]:
             return {n: set(n.possible_tiles) for n in self.nodes}
 
@@ -103,7 +98,7 @@ class HexMap:
                 return True
 
             snapshot = save()
-            ordered = selector(node, node.possible_tiles)
+            ordered = node.select_tiles()
             n = try_from(node, 0, snapshot, ordered)
 
             if n >= 0:
@@ -129,14 +124,7 @@ class HexMap:
         """
         nodes = []
         for node in self.nodes:
-            tile_data = None
-            if node.collapsed:
-                tile = next(iter(node.possible_tiles))
-                tile_data = {
-                    "name": tile.name,
-                    "rotation": tile.rotation,
-                    "edges": list(tile.edges),
-                }
+            tile_data = node.tile_json()
             nodes.append({"q": node.q, "r": node.r, "s": node.s, "tile": tile_data})
         return json.dumps({"nodes": nodes}, indent=2)
 

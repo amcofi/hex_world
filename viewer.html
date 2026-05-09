@@ -65,6 +65,15 @@
 
     svg .hex-group { cursor: default; }
     svg .hex-group:hover .hex-outline { stroke: #cba6f7; stroke-width: 2.5; }
+
+    #edge-label {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      cursor: pointer;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -98,6 +107,9 @@
   -->
   <input type="file" id="file-input" accept=".json,.png,.jpg,.jpeg,.svg,.webp" multiple>
   <span id="status">No map loaded</span>
+  <label id="edge-label">
+    <input type="checkbox" id="edge-toggle"> Edges
+  </label>
   <span id="tooltip"></span>
 </header>
 
@@ -111,6 +123,12 @@
   const HEX_FILL_EMPTY = "#2a2a3e";
   const HEX_STROKE     = "#555566";
   const NS             = "http://www.w3.org/2000/svg";
+
+  // ── edge colours ─────────────────────────────────────────────────────────────
+  const EDGE_COLORS = {
+    grass: "#4caf50",
+    road:  "#c8a04a",
+  };
 
   // ── geometry ─────────────────────────────────────────────────────────────────
   function hexVertices(cx, cy, r) {
@@ -195,7 +213,7 @@
   function renderTileImage(g, cx, cy, rotation, info, clipId) {
     const outer = el("g", { "clip-path": `url(#${clipId})` });
     const inner = el("g", {
-      transform: `rotate(${rotation * 60},${cx.toFixed(2)},${cy.toFixed(2)})`,
+      transform: `rotate(${-rotation * 60},${cx.toFixed(2)},${cy.toFixed(2)})`,
     });
 
     if (info.type === 'image') {
@@ -226,8 +244,33 @@
     g.appendChild(outer);
   }
 
+  // ── render edge highlights ───────────────────────────────────────────────────
+  function renderEdgeColors(g, cx, cy, edges) {
+    const verts = hexVertices(cx, cy, SIZE);
+    const INSET = 6;
+    edges.forEach((name, i) => {
+      const color = EDGE_COLORS[name];
+      if (!color) return;
+      const [x1, y1] = verts[i];
+      const [x2, y2] = verts[(i + 1) % 6];
+      // shift the line segment toward the hex centre by INSET pixels
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const dist = Math.hypot(cx - mx, cy - my);
+      const ox = (cx - mx) / dist * INSET;
+      const oy = (cy - my) / dist * INSET;
+      g.appendChild(el("line", {
+        x1: (x1 + ox).toFixed(2), y1: (y1 + oy).toFixed(2),
+        x2: (x2 + ox).toFixed(2), y2: (y2 + oy).toFixed(2),
+        stroke: color,
+        "stroke-width": "5",
+        "stroke-linecap": "round",
+      }));
+    });
+  }
+
   // ── render map ───────────────────────────────────────────────────────────────
   function renderMap(mapData, resolver) {
+    const showEdges = document.getElementById("edge-toggle").checked;
     const positions = mapData.nodes.map(n => hexToPixel(n.q, n.r));
 
     const xs   = positions.map(([x]) => x);
@@ -259,8 +302,9 @@
       }));
 
       if (node.tile) {
-        const info = resolver[node.tile.name];
-        if (info) renderTileImage(g, cx, cy, node.tile.rotation, info, clipId);
+        const info = resolver[node.tile.name]
+          ?? { type: 'image', url: `tiles/${node.tile.name}.png` };
+        renderTileImage(g, cx, cy, node.tile.rotation, info, clipId);
       }
 
       g.appendChild(el("polygon", {
@@ -270,6 +314,10 @@
         stroke:         HEX_STROKE,
         "stroke-width": "1.5",
       }));
+
+      if (showEdges && node.tile?.edges) {
+        renderEdgeColors(g, cx, cy, node.tile.edges);
+      }
 
       g.dataset.q = node.q;
       g.dataset.r = node.r;
@@ -296,6 +344,12 @@
   }
 
   // ── file loading ─────────────────────────────────────────────────────────────
+  let lastRender = null;
+
+  document.getElementById("edge-toggle").addEventListener("change", () => {
+    if (lastRender) renderMap(lastRender.mapData, lastRender.resolver);
+  });
+
   document.getElementById("file-input").addEventListener("change", async ev => {
     const files = Array.from(ev.target.files);
     if (!files.length) return;
@@ -333,6 +387,7 @@
 
     try {
       const resolver  = await buildResolver(config, imageUrls);
+      lastRender = { mapData, resolver };
       renderMap(mapData, resolver);
       const n         = mapData.nodes.length;
       const collapsed = mapData.nodes.filter(nd => nd.tile).length;

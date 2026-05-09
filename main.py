@@ -1,12 +1,12 @@
-from hex_map import HexMap
-from hex_tile import HexTile
+from src.hex_map import HexMap
+from src.hex_tile import HexTile
 
 
 def main():
     tile_set = (
-        HexTile.rotations("plain",         ["grass", "grass", "grass", "grass", "grass", "grass"]) |
-        HexTile.rotations("road_end",      ["road",  "grass", "grass", "grass", "grass", "grass"]) |
-        HexTile.rotations("road_straight", ["road",  "grass", "grass", "road",  "grass", "grass"])
+        HexTile.rotations("road_straight", ["road",  "grass", "grass", "road",  "grass", "grass"]) |
+        HexTile.rotations("grass",         ["grass", "grass", "grass", "grass", "grass", "grass"]) |
+        HexTile.rotations("road_end",      ["road",  "grass", "grass", "grass", "grass", "grass"])
     )
 
     hex_map = HexMap.hexagon(radius=2, possible_tiles=tile_set)
