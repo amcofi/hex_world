@@ -6,6 +6,16 @@ from .hex_tile import HexTile
 _DIRECTIONS = [(1, -1, 0), (1, 0, -1), (0, 1, -1), (-1, 1, 0), (-1, 0, 1), (0, -1, 1)]
 
 
+def _edge_index_for_direction(direction: int) -> int:
+    """Map a neighbor direction index to the tile edge index facing that neighbor.
+
+    The renderer defines edge i as the segment from vertex i to vertex (i+1),
+    with vertex 0 at angle 0deg (east) and increasing clockwise in screen space.
+    Under that geometry, direction d faces edge (d - 1) mod 6.
+    """
+    return (direction - 1) % 6
+
+
 class HexMap:
     """
     Represents a collection of HexNodes that form a map.
@@ -50,9 +60,11 @@ class HexMap:
                 neighbor = self._node_map.get((node.q + dq, node.r + dr))
                 if not neighbor:
                     continue
-                valid_edges = {t.edges[d] for t in node.possible_tiles}
+                edge_idx = _edge_index_for_direction(d)
+                valid_edges = {t.edges[edge_idx] for t in node.possible_tiles}
                 opp = (d + 3) % 6
-                new_tiles = {t for t in neighbor.possible_tiles if t.edges[opp] in valid_edges}
+                opp_edge_idx = _edge_index_for_direction(opp)
+                new_tiles = {t for t in neighbor.possible_tiles if t.edges[opp_edge_idx] in valid_edges}
                 if not new_tiles:
                     return False
                 if new_tiles != neighbor.possible_tiles:
