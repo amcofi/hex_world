@@ -61,14 +61,14 @@ class HexMap:
                 if not neighbor:
                     continue
                 edge_idx = _edge_index_for_direction(d)
-                valid_edges = {t.edges[edge_idx] for t in node.possible_tiles}
+                allowed_edge_labels = {t.edges[edge_idx] for t in node.possible_tiles}
                 opp = (d + 3) % 6
                 opp_edge_idx = _edge_index_for_direction(opp)
-                new_tiles = {t for t in neighbor.possible_tiles if t.edges[opp_edge_idx] in valid_edges}
-                if not new_tiles:
+                before_tiles = neighbor.possible_tiles
+                has_possible_tiles = neighbor.constrain_to_edge_labels(opp_edge_idx, allowed_edge_labels)
+                if not has_possible_tiles:
                     return False
-                if new_tiles != neighbor.possible_tiles:
-                    neighbor.possible_tiles = new_tiles
+                if neighbor.possible_tiles != before_tiles:
                     queue.append(neighbor)
         return True
 

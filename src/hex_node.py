@@ -47,6 +47,17 @@ class HexNode:
         """
         return list(self.tile_selector(self, self.possible_tiles))
 
+    def constrain_to_edge_labels(self, side_index: int, allowed_edge_labels: set[str]) -> bool:
+        """Keep only tiles whose edge at ``side_index`` is allowed.
+
+        Returns True if at least one tile remains after filtering.
+        """
+        self.possible_tiles = {
+            tile for tile in self.possible_tiles
+            if tile.edges[side_index] in allowed_edge_labels
+        }
+        return bool(self.possible_tiles)
+
     def tile_json(self) -> dict[str, object] | None:
         """Return the JSON-ready representation of the collapsed tile."""
         if not self.collapsed:
