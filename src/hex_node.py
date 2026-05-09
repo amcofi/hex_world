@@ -47,6 +47,11 @@ class HexNode:
         """
         return list(self.tile_selector(self, self.possible_tiles))
 
+    def edge_label_matches(self, my_label: str, their_label: str) -> bool:
+        """Check if the two provided labels are compatible for adjacent edges."""
+        # For now, we just require them to be exactly equal.
+        return my_label == their_label
+
     def constrain_to_edge_labels(self, side_index: int, allowed_edge_labels: set[str]) -> bool:
         """Keep only tiles whose edge at ``side_index`` is allowed.
 
@@ -54,7 +59,8 @@ class HexNode:
         """
         self.possible_tiles = {
             tile for tile in self.possible_tiles
-            if tile.edges[side_index] in allowed_edge_labels
+            if any(self.edge_label_matches(tile.edges[side_index], allowed_label)
+                   for allowed_label in allowed_edge_labels)
         }
         return bool(self.possible_tiles)
 
