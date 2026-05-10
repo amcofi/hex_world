@@ -48,8 +48,19 @@ class HexNode:
         return list(self.tile_selector(self, self.possible_tiles))
 
     def edge_label_matches(self, my_label: str, their_label: str) -> bool:
-        """Check if the two provided labels are compatible for adjacent edges."""
-        # For now, we just require them to be exactly equal.
+        """Check if the two provided labels are compatible for adjacent edges.
+        
+        # Roads must always connect to rivers and vice versa.
+        # Roads and rivers cannot connect to any other type of edge.
+        # All other edges must match exactly.
+        # """
+        # if my_label == "road" and their_label == "river":
+        #     return True
+        # if my_label == "river" and their_label == "road":
+        #     return True
+        # if (my_label in {"road", "river"}) or (their_label in {"road", "river"}):
+        #     return False
+
         return my_label == their_label
 
     def constrain_to_edge_labels(self, side_index: int, allowed_edge_labels: set[str]) -> bool:

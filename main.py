@@ -27,7 +27,7 @@ def main():
         HexTile.rotations("coast_4",         ["water", "water", "water", "water", "coast", "coast"])
     )
 
-    radius = 8
+    radius = 16
     hex_map = HexMap.hexagon(radius=radius, possible_tiles=tile_set)
     
     # Use random tile selection for more variety
